@@ -8,93 +8,96 @@ from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
-# Page configuration
 st.set_page_config(page_title="Credit Risk Predictor", layout="wide")
 
-# Load and preprocess data
+# Load default dataset
+@st.cache_data
 def load_data():
     df = pd.read_csv("german_credit_data.csv")
     df['Class'] = df['Credit amount'].apply(lambda x: 1 if x > 5000 else 0)
     return df
 
+# Train model
 def train_model(X_train, y_train):
     model = RandomForestClassifier(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
     return model
 
-# Title
-st.title("💳 Credit Risk Prediction App")
-st.markdown("Use this app to analyze and predict credit risk based on customer data from the German Credit dataset.")
-
 # Sidebar
-with st.sidebar:
-    st.header("📂 Data Source")
-    uploaded_file = st.file_uploader("Upload your dataset", type="csv")
-    if uploaded_file is not None:
-        df = pd.read_csv(uploaded_file)
-        st.success("✅ Custom dataset loaded")
-    else:
-        df = load_data()
-        st.info("Using default dataset")
+st.sidebar.title("Navigation")
+section = st.sidebar.radio("Go to", ["Dataset", "Model Training", "Prediction"])
 
-# Main Section
-st.subheader("📊 Dataset Preview")
-st.dataframe(df.head())
+# Upload or load default data
+uploaded_file = st.sidebar.file_uploader("Upload your CSV", type="csv")
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    st.sidebar.success("Custom dataset loaded.")
+else:
+    df = load_data()
+    st.sidebar.info("Using default German Credit dataset.")
 
-# Prepare data
+# Preprocessing
 X = df.drop(columns=['Class', 'Unnamed: 0'], errors='ignore')
 y = df['Class']
 X = pd.get_dummies(X, drop_first=True)
-
-# Train-test split
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Scaling
 scaler = StandardScaler()
-X_train = scaler.fit_transform(X_train)
-X_test = scaler.transform(X_test)
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Model training
-model = train_model(X_train, y_train)
-y_pred = model.predict(X_test)
-
-# Metrics
+model = train_model(X_train_scaled, y_train)
+y_pred = model.predict(X_test_scaled)
 accuracy = accuracy_score(y_test, y_pred)
-st.metric("🔍 Model Accuracy", f"{accuracy:.2%}")
 
-# Tabs for different visualizations
-tab1, tab2, tab3 = st.tabs(["📋 Classification Report", "📉 Confusion Matrix", "🔥 Feature Importance"])
+if section == "Dataset":
+    st.title("📊 Dataset Preview")
+    st.dataframe(df.head(10))
+    st.metric("Rows", df.shape[0])
+    st.metric("Columns", df.shape[1])
 
-with tab1:
-    st.code(classification_report(y_test, y_pred), language='text')
+elif section == "Model Training":
+    st.title("🤖 Model Performance")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        st.metric("Model Accuracy", f"{accuracy:.2%}")
+    
+    with col2:
+        st.subheader("Confusion Matrix")
+        cm = confusion_matrix(y_test, y_pred)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", ax=ax)
+        ax.set_xlabel("Predicted")
+        ax.set_ylabel("Actual")
+        st.pyplot(fig)
 
-with tab2:
-    st.write("Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    fig, ax = plt.subplots(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt='d', cmap='YlGnBu', xticklabels=['Good', 'Bad'], yticklabels=['Good', 'Bad'])
-    st.pyplot(fig)
+    st.subheader("Classification Report")
+    st.text(classification_report(y_test, y_pred))
 
-with tab3:
-    st.write("Top 10 Important Features")
+    st.subheader("Top 10 Important Features")
     importances = model.feature_importances_
-    feat_df = pd.DataFrame({'Feature': X.columns, 'Importance': importances}).sort_values(by='Importance', ascending=False)
-    fig2, ax2 = plt.subplots(figsize=(10, 5))
-    sns.barplot(data=feat_df.head(10), x="Importance", y="Feature", palette="mako", ax=ax2)
+    feature_names = X.columns
+    feat_df = pd.DataFrame({'Feature': feature_names, 'Importance': importances}).sort_values(by='Importance', ascending=False)
+
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    sns.barplot(data=feat_df.head(10), x="Importance", y="Feature", ax=ax2)
     st.pyplot(fig2)
 
-# Custom Prediction Input
-st.subheader("🔮 Predict Credit Risk for Custom Input")
-with st.form("prediction_form"):
-    cols = st.columns(2)
-    sample_input = []
-    for i, feature in enumerate(X.columns):
-        with cols[i % 2]:
-            value = st.number_input(f"{feature}", value=0.0)
-            sample_input.append(value)
-    submitted = st.form_submit_button("Predict Risk")
+elif section == "Prediction":
+    st.title("🔮 Predict Credit Risk")
 
-if submitted:
-    prediction = model.predict(np.array(sample_input).reshape(1, -1))
-    result = "🟢 Good Credit" if prediction[0] == 0 else "🔴 Bad Credit"
-    st.success(f"Prediction Result: {result}")
+    with st.form("custom_input_form"):
+        st.markdown("#### Enter values for the following features:")
+        input_data = []
+        for feature in X.columns:
+            val = st.number_input(f"{feature}", value=0.0, format="%.2f")
+            input_data.append(val)
+
+        submitted = st.form_submit_button("Predict")
+
+    if submitted:
+        sample_input = np.array(input_data).reshape(1, -1)
+        prediction = model.predict(sample_input)
+        result = "🟢 Good Credit" if prediction[0] == 0 else "🔴 Bad Credit"
+        st.success(f"Prediction: {result}")
