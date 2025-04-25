@@ -87,17 +87,63 @@ elif section == "Model Training":
 elif section == "Prediction":
     st.title("🔮 Predict Credit Risk")
 
+    # 1. Collect inputs with the correct widget per field
     with st.form("custom_input_form"):
-        st.markdown("#### Enter values for the following features:")
-        input_data = []
-        for feature in X.columns:
-            val = st.number_input(f"{feature}", value=0.0, format="%.2f")
-            input_data.append(val)
-
+        st.markdown("#### Enter applicant details:")
+        age = st.number_input("Age", int(df.Age.min()), int(df.Age.max()), int(df.Age.median()))
+        sex = st.selectbox("Sex", df["Sex"].unique())
+        job = st.selectbox("Job", df["Job"].unique())
+        housing = st.selectbox("Housing", df["Housing"].unique())
+        saving = st.selectbox("Saving Accounts", df["Saving accounts"].fillna("missing").unique())
+        checking = st.number_input(
+            "Checking Account (DM)",
+            float(df["Checking account"].min()),
+            float(df["Checking account"].max()),
+            float(df["Checking account"].median())
+        )
+        credit = st.number_input(
+            "Credit Amount (DM)",
+            float(df["Credit amount"].min()),
+            float(df["Credit amount"].max()),
+            float(df["Credit amount"].median())
+        )
+        duration = st.number_input(
+            "Duration (months)",
+            int(df["Duration"].min()),
+            int(df["Duration"].max()),
+            int(df["Duration"].median())
+        )
+        purpose = st.selectbox("Purpose", df["Purpose"].unique())
         submitted = st.form_submit_button("Predict")
 
+    # 2. When submitted, build a DataFrame, align dummies, and predict
     if submitted:
-        sample_input = np.array(input_data).reshape(1, -1)
-        prediction = model.predict(sample_input)
-        result = "🟢 Good Credit" if prediction[0] == 0 else "🔴 Bad Credit"
-        st.success(f"Prediction: {result}")
+        input_dict = {
+            "Age": age,
+            "Sex": sex,
+            "Job": job,
+            "Housing": housing,
+            "Saving accounts": saving,
+            "Checking account": checking,
+            "Credit amount": credit,
+            "Duration": duration,
+            "Purpose": purpose
+        }
+        input_df = pd.DataFrame([input_dict])
+
+        # one-hot encode & align to training columns
+        input_df = pd.get_dummies(input_df, drop_first=True)
+        input_df = input_df.reindex(columns=X.columns, fill_value=0)
+
+        # scale numeric features
+        num_cols = ["Age", "Checking account", "Credit amount", "Duration"]
+        input_df[num_cols] = scaler.transform(input_df[num_cols])
+
+        # predict
+        pred = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[0, 1]
+        label = "🟢 Good Credit" if pred == 0 else "🔴 Bad Credit"
+
+        # display
+        st.subheader("Prediction Results")
+        st.write(f"{label}**  (probability of bad risk: {prob:.2f})")
