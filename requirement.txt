@@ -1,8 +1,8 @@
-pip install pandas         # Data manipulation and analysis :contentReference[oaicite:0]{index=0}
-pip install numpy          # Fundamental numerical computing :contentReference[oaicite:1]{index=1}
-pip install matplotlib     # Plotting and visualization :contentReference[oaicite:2]{index=2}
-pip install seaborn        # Statistical data visualization :contentReference[oaicite:3]{index=3}
-pip install scikit-learn   # Machine learning algorithms :contentReference[oaicite:4]{index=4}
-pip install xgboost        # Gradient boosting framework :contentReference[oaicite:5]{index=5}
-pip install joblib         # Model persistence & pipelining :contentReference[oaicite:6]{index=6}
-pip install streamlit      # Interactive app framework :contentReference[oaicite:7]{index=7}
+pandas
+numpy
+matplotlib
+seaborn
+scikit-learn
+xgboost
+joblib
+streamlit
