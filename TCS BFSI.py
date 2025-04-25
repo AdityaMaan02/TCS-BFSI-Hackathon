@@ -5,103 +5,106 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.preprocessing import LabelEncoder, StandardScaler
-from sklearn.metrics import classification_report, confusion_matrix
+from sklearn.metrics import classification_report, confusion_matrix, ConfusionMatrixDisplay
 import xgboost as xgb
 
-st.set_page_config(page_title="Credit Risk Prediction", layout="wide")
+# Streamlit App
+st.set_page_config(page_title="German Credit Risk Analysis", layout="wide")
+st.title("German Credit Risk Analysis")
 
-# Title
-st.title("📊 Credit Risk Classification App")
-st.markdown("This app loads and trains a model to predict good vs bad credit risk using XGBoost.")
-
-# Load data
-@st.cache_data
-def load_data():
-    df = pd.read_csv("german_credit_data.csv")
-    return df
-
-credit_data = load_data()
-
-# Preprocessing
-credit_data['Checking account'] = pd.to_numeric(credit_data['Checking account'], errors='coerce')
-credit_data['Checking account'].fillna(credit_data['Checking account'].median(), inplace=True)
-credit_data['Saving accounts'].fillna('unknown', inplace=True)
-
-# Thresholds
-credit_limit = credit_data['Credit amount'].median()
-time_limit   = credit_data['Duration'].median()
-
-credit_data['Target'] = (
-    (credit_data['Credit amount'] > credit_limit) &
-    (credit_data['Duration'] < time_limit)
-).astype(int)
-
-# Encoding
-encoders = {}
-for col in credit_data.select_dtypes(include='object').columns:
-    le = LabelEncoder()
-    credit_data[col] = le.fit_transform(credit_data[col])
-    encoders[col] = le
-
-# Scaling
-features_to_scale = ['Age', 'Credit amount', 'Duration', 'Checking account']
-scaler = StandardScaler()
-credit_data[features_to_scale] = scaler.fit_transform(credit_data[features_to_scale])
-
-# Show dataframe
-with st.expander("🔍 View Preprocessed Dataset"):
-    st.dataframe(credit_data.head())
-
-# Heatmap
-st.subheader("🔗 Feature Correlation Heatmap")
-fig, ax = plt.subplots(figsize=(12, 8))
-sns.heatmap(credit_data.corr(), annot=True, cmap='coolwarm', fmt=".2f", linewidths=0.5, ax=ax)
-st.pyplot(fig)
-
-# Train/Test split
-X = credit_data.drop(columns=['Target'])
-y = credit_data['Target']
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, stratify=y, random_state=42
+# Sidebar for user inputs
+st.sidebar.header("Data and Model Settings")
+raw_url = st.sidebar.text_input("german_credit_data.csv"
 )
 
-# Hyperparameters
-st.sidebar.header("⚙️ Model Parameters")
-n_estimators = st.sidebar.selectbox("n_estimators", [100, 200], index=0)
-max_depth = st.sidebar.selectbox("max_depth", [3, 5, 7], index=1)
-learning_rate = st.sidebar.selectbox("learning_rate", [0.01, 0.1, 0.2], index=1)
+test_size = st.sidebar.slider("Test Set Size (%)", min_value=10, max_value=50, value=20, step=5)
+n_estimators = st.sidebar.selectbox("Number of Trees (n_estimators)", [50, 100, 200, 300], index=1)
+max_depth = st.sidebar.selectbox("Max Tree Depth", [3, 5, 7, 9], index=1)
+learning_rate = st.sidebar.selectbox("Learning Rate", [0.01, 0.05, 0.1, 0.2], index=2)
+cv_folds = st.sidebar.selectbox("CV Folds", [3, 5, 7], index=0)
+run_button = st.sidebar.button("Train Model")
 
-# Train Model
-st.subheader("📈 Model Training and Evaluation")
-if st.button("Train Model"):
-    with st.spinner("Training the XGBoost model..."):
-        model = xgb.XGBClassifier(
-            use_label_encoder=False,
-            eval_metric='logloss',
-            random_state=42,
-            n_estimators=n_estimators,
-            max_depth=max_depth,
-            learning_rate=learning_rate
-        )
-        model.fit(X_train, y_train)
-        y_pred = model.predict(X_test)
+# Cache data loading\@st.cache_data
+def load_data(url):
+    df = pd.read_csv(url)
+    # Drop unnecessary column if present
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'])
+    return df
 
-    st.success("Model training completed!")
+# Main pipeline
+def preprocess(df):
+    # Handle missing categorical
+    df.fillna({'Saving accounts': 'unknown', 'Checking account': 'unknown'}, inplace=True)
+    # Encode categorical
+    encoders = {}
+    for col in df.select_dtypes(include='object').columns:
+        le = LabelEncoder()
+        df[col] = le.fit_transform(df[col])
+        encoders[col] = le
+    # Scale numerical
+    scaler = StandardScaler()
+    df[['Age', 'Credit amount', 'Duration']] = scaler.fit_transform(df[['Age', 'Credit amount', 'Duration']])
+    # Define target
+    credit_limit = df['Credit amount'].median()
+    time_limit = df['Duration'].median()
+    df['Target'] = ((df['Credit amount'] > credit_limit) & (df['Duration'] < time_limit)).astype(int)
+    return df
 
-    # Evaluation
-    st.markdown("#### Classification Report")
-    report = classification_report(y_test, y_pred, output_dict=True)
-    st.dataframe(pd.DataFrame(report).transpose())
+# Plot functions
+def plot_correlation(df):
+    fig, ax = plt.subplots(figsize=(10, 8))
+    sns.heatmap(df.corr(), annot=True, cmap='coolwarm', fmt='.2f', linewidths=0.5, ax=ax)
+    st.subheader("Feature Correlation Heatmap")
+    st.pyplot(fig)
 
-    # Confusion Matrix
-    st.markdown("#### Confusion Matrix")
-    cm = confusion_matrix(y_test, y_pred)
-    fig2, ax2 = plt.subplots()
-    sns.heatmap(cm, annot=True, fmt="d", cmap="YlGnBu",
-                xticklabels=['Good', 'Bad'], yticklabels=['Good', 'Bad'], ax=ax2)
-    plt.xlabel('Predicted')
-    plt.ylabel('Actual')
-    st.pyplot(fig2)
+def plot_confusion(cm):
+    fig, ax = plt.subplots()
+    disp = ConfusionMatrixDisplay(cm, display_labels=['Low Risk', 'High Risk'])
+    disp.plot(cmap='YlGnBu', ax=ax)
+    st.subheader("Confusion Matrix")
+    st.pyplot(fig)
+
+# Execute
+if raw_url:
+    try:
+        data = load_data(raw_url)
+        st.write("### Raw Data Preview", data.head())
+        plot_correlation(data)
+
+        if run_button:
+            df = preprocess(data.copy())
+            X = df.drop(columns=['Target'])
+            y = df['Target']
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=test_size/100, stratify=y, random_state=42
+            )
+            params = {
+                'n_estimators': n_estimators,
+                'max_depth': max_depth,
+                'learning_rate': learning_rate
+            }
+            st.write(f"## Training XGBoost with params: {params}")
+            model = xgb.XGBClassifier(use_label_encoder=False, eval_metric='logloss', random_state=42, **params)
+            grid = GridSearchCV(model, {
+                'n_estimators': [n_estimators],
+                'max_depth': [max_depth],
+                'learning_rate': [learning_rate]
+            }, scoring='f1', cv=cv_folds, n_jobs=-1)
+            grid.fit(X_train, y_train)
+            best = grid.best_estimator_
+            y_pred = best.predict(X_test)
+
+            report = classification_report(y_test, y_pred, output_dict=True)
+            cm = confusion_matrix(y_test, y_pred)
+
+            st.subheader("Classification Report")
+            st.table(pd.DataFrame(report).T)
+            plot_confusion(cm)
+            st.write(f"### Best CV Score: {grid.best_score_:.4f}")
+            st.write(f"### Best Params: {grid.best_params_}")
+
+    except Exception as e:
+        st.error(f"Error loading or processing data: {e}")
 else:
-    st.info("Click the 'Train Model' button to run the model.")
-
+    st.info("Please provide the raw GitHub CSV URL.")
