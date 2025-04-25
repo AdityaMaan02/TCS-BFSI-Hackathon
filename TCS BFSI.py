@@ -87,7 +87,6 @@ elif section == "Model Training":
 elif section == "Prediction":
     st.title("🔮 Predict Credit Risk")
 
-    # 1. Collect inputs with the correct widget per field
     with st.form("custom_input_form"):
         st.markdown("#### Enter applicant details:")
         age = st.number_input("Age", int(df.Age.min()), int(df.Age.max()), int(df.Age.median()))
@@ -95,12 +94,7 @@ elif section == "Prediction":
         job = st.selectbox("Job", df["Job"].unique())
         housing = st.selectbox("Housing", df["Housing"].unique())
         saving = st.selectbox("Saving Accounts", df["Saving accounts"].fillna("missing").unique())
-        checking = st.number_input(
-            "Checking Account (DM)",
-            float(df["Checking account"].min()),
-            float(df["Checking account"].max()),
-            float(df["Checking account"].median())
-        )
+        checking = st.selectbox("Checking Account", df["Checking account"].fillna("missing").unique())
         credit = st.number_input(
             "Credit Amount (DM)",
             float(df["Credit amount"].min()),
@@ -116,7 +110,6 @@ elif section == "Prediction":
         purpose = st.selectbox("Purpose", df["Purpose"].unique())
         submitted = st.form_submit_button("Predict")
 
-    # 2. When submitted, build a DataFrame, align dummies, and predict
     if submitted:
         input_dict = {
             "Age": age,
@@ -129,21 +122,21 @@ elif section == "Prediction":
             "Duration": duration,
             "Purpose": purpose
         }
+
         input_df = pd.DataFrame([input_dict])
 
-        # one-hot encode & align to training columns
+        # One-hot encode input to match training data
         input_df = pd.get_dummies(input_df, drop_first=True)
         input_df = input_df.reindex(columns=X.columns, fill_value=0)
 
-        # scale numeric features
-        num_cols = ["Age", "Checking account", "Credit amount", "Duration"]
+        # Scale numeric columns
+        num_cols = ["Age", "Credit amount", "Duration"]
         input_df[num_cols] = scaler.transform(input_df[num_cols])
 
-        # predict
+        # Predict
         pred = model.predict(input_df)[0]
         prob = model.predict_proba(input_df)[0, 1]
         label = "🟢 Good Credit" if pred == 0 else "🔴 Bad Credit"
 
-        # display
         st.subheader("Prediction Results")
-        st.write(f"{label}**  (probability of bad risk: {prob:.2f})")
+        st.write(f"{label} (probability of bad credit: {prob:.2f})")
