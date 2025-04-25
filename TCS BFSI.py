@@ -93,16 +93,16 @@ elif section == "Prediction":
         sex = st.selectbox("Sex", df["Sex"].unique())
         job = st.selectbox("Job", df["Job"].unique())
         housing = st.selectbox("Housing", df["Housing"].unique())
-        saving = st.selectbox("Saving Accounts", df["Saving accounts"].fillna("missing").unique())
-        checking = st.selectbox("Checking Account", df["Checking account"].fillna("missing").unique())
+        saving = st.selectbox("Saving accounts", df["Saving accounts"].fillna("missing").unique())
+        checking = st.selectbox("Checking account", df["Checking account"].fillna("missing").unique())
         credit = st.number_input(
-            "Credit Amount (DM)",
+            "Credit amount",  # 👈 Must match training column exactly
             float(df["Credit amount"].min()),
             float(df["Credit amount"].max()),
             float(df["Credit amount"].median())
         )
         duration = st.number_input(
-            "Duration (months)",
+            "Duration",
             int(df["Duration"].min()),
             int(df["Duration"].max()),
             int(df["Duration"].median())
@@ -116,27 +116,5 @@ elif section == "Prediction":
             "Sex": sex,
             "Job": job,
             "Housing": housing,
-            "Saving accounts": saving,
-            "Checking account": checking,
-            "Credit amount": credit,
-            "Duration": duration,
-            "Purpose": purpose
-        }
+            "Saving
 
-        input_df = pd.DataFrame([input_dict])
-
-        # One-hot encode input to match training data
-        input_df = pd.get_dummies(input_df, drop_first=True)
-        input_df = input_df.reindex(columns=X.columns, fill_value=0)
-
-        # Scale numeric columns
-        num_cols = ["Age", "Credit amount", "Duration"]
-        input_df[num_cols] = scaler.transform(input_df[num_cols])
-
-        # Predict
-        pred = model.predict(input_df)[0]
-        prob = model.predict_proba(input_df)[0, 1]
-        label = "🟢 Good Credit" if pred == 0 else "🔴 Bad Credit"
-
-        st.subheader("Prediction Results")
-        st.write(f"{label} (probability of bad credit: {prob:.2f})")
