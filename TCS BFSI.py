@@ -116,5 +116,28 @@ elif section == "Prediction":
             "Sex": sex,
             "Job": job,
             "Housing": housing,
-            "Saving
+            "Saving accounts": saving,
+            "Checking account": checking,
+            "Credit amount": credit,     # 👈 Match exact column name
+            "Duration": duration,
+            "Purpose": purpose
+        }
+
+        input_df = pd.DataFrame([input_dict])
+
+        # One-hot encode to match training features
+        input_df = pd.get_dummies(input_df, drop_first=True)
+        input_df = input_df.reindex(columns=X.columns, fill_value=0)
+
+        # Scale numeric features (same names as used in training)
+        num_cols = ["Age", "Credit amount", "Duration"]
+        input_df[num_cols] = scaler.transform(input_df[num_cols])
+
+        # Predict
+        pred = model.predict(input_df)[0]
+        prob = model.predict_proba(input_df)[0, 1]
+        label = "🟢 Good Credit" if pred == 0 else "🔴 Bad Credit"
+
+        st.subheader("Prediction Results")
+        st.write(f"{label} (probability of bad credit: {prob:.2f})")
 
